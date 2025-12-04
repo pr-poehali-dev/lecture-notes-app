@@ -52,8 +52,13 @@ const Index = () => {
   const [newScheduleSubject, setNewScheduleSubject] = useState('');
   const [newScheduleDate, setNewScheduleDate] = useState('');
   const [newScheduleTime, setNewScheduleTime] = useState('');
+  
+  const [selectedLecture, setSelectedLecture] = useState<Lecture | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackTime, setPlaybackTime] = useState(0);
 
   const intervalRef = useRef<number | null>(null);
+  const playbackIntervalRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (isRecording && !isPaused) {
@@ -71,12 +76,44 @@ const Index = () => {
       }
     };
   }, [isRecording, isPaused]);
+  
+  useEffect(() => {
+    if (isPlaying && selectedLecture) {
+      const durationSeconds = timeStringToSeconds(selectedLecture.duration);
+      playbackIntervalRef.current = window.setInterval(() => {
+        setPlaybackTime(prev => {
+          if (prev >= durationSeconds) {
+            setIsPlaying(false);
+            return durationSeconds;
+          }
+          return prev + 1;
+        });
+      }, 1000);
+    } else {
+      if (playbackIntervalRef.current) {
+        clearInterval(playbackIntervalRef.current);
+      }
+    }
+    return () => {
+      if (playbackIntervalRef.current) {
+        clearInterval(playbackIntervalRef.current);
+      }
+    };
+  }, [isPlaying, selectedLecture]);
 
   const formatTime = (seconds: number) => {
     const hrs = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
     return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+  
+  const timeStringToSeconds = (timeString: string): number => {
+    const parts = timeString.split(':').map(Number);
+    if (parts.length === 3) {
+      return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    }
+    return 0;
   };
 
   const handleStartStop = () => {
@@ -154,9 +191,43 @@ const Index = () => {
 
   const handleDeleteLecture = (id: string) => {
     setLectures(prev => prev.filter(l => l.id !== id));
+    if (selectedLecture?.id === id) {
+      setSelectedLecture(null);
+      setIsPlaying(false);
+      setPlaybackTime(0);
+    }
     toast({
       title: "Лекция удалена",
       description: "Лекция успешно удалена из библиотеки"
+    });
+  };
+  
+  const handlePlayLecture = (lecture: Lecture) => {
+    setSelectedLecture(lecture);
+    setPlaybackTime(0);
+    setIsPlaying(true);
+    toast({
+      title: "Воспроизведение начато",
+      description: lecture.title
+    });
+  };
+  
+  const handlePlayPause = () => {
+    setIsPlaying(!isPlaying);
+  };
+  
+  const handleStopPlayback = () => {
+    setIsPlaying(false);
+    setPlaybackTime(0);
+    setSelectedLecture(null);
+  };
+  
+  const handleSeekToNote = (noteTime: string) => {
+    const seconds = timeStringToSeconds(noteTime);
+    setPlaybackTime(seconds);
+    toast({
+      title: "Переход к заметке",
+      description: `Время: ${noteTime}`
     });
   };
 
@@ -374,6 +445,86 @@ const Index = () => {
           </TabsContent>
 
           <TabsContent value="library" className="space-y-6">
+            {selectedLecture && (
+              <Card className="border-accent">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      <Icon name="Play" size={20} />
+                      Воспроизведение
+                    </CardTitle>
+                    <Button size="sm" variant="ghost" onClick={handleStopPlayback}>
+                      <Icon name="X" size={18} />
+                    </Button>
+                  </div>
+                  <CardDescription>{selectedLecture.title}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="bg-muted rounded-lg p-6 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="text-3xl font-bold font-mono text-primary">
+                        {formatTime(playbackTime)}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        / {selectedLecture.duration}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Button onClick={handlePlayPause}>
+                        <Icon name={isPlaying ? "Pause" : "Play"} size={18} className="mr-2" />
+                        {isPlaying ? 'Пауза' : 'Воспроизвести'}
+                      </Button>
+                      <Button variant="outline" onClick={handleStopPlayback}>
+                        <Icon name="Square" size={18} className="mr-2" />
+                        Остановить
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  {selectedLecture.notes.length > 0 && (
+                    <div>
+                      <h4 className="font-semibold mb-3 flex items-center gap-2">
+                        <Icon name="BookMarked" size={16} />
+                        Заметки ({selectedLecture.notes.length})
+                      </h4>
+                      <ScrollArea className="h-[200px] rounded-md border p-3">
+                        <div className="space-y-2">
+                          {selectedLecture.notes.map((note) => (
+                            <div
+                              key={note.id}
+                              className={`p-3 rounded-lg cursor-pointer transition-colors ${
+                                note.isImportant
+                                  ? 'bg-accent/10 border border-accent hover:bg-accent/20'
+                                  : 'bg-muted/50 hover:bg-muted'
+                              }`}
+                              onClick={() => handleSeekToNote(note.time)}
+                            >
+                              <div className="flex items-start gap-3">
+                                <Icon
+                                  name={note.isImportant ? "Star" : "MessageSquare"}
+                                  size={14}
+                                  className={note.isImportant ? 'text-accent mt-0.5' : 'text-muted-foreground mt-0.5'}
+                                />
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="text-xs font-mono font-semibold">{note.time}</span>
+                                    {note.isImportant && (
+                                      <Badge variant="secondary" className="text-xs">Важно</Badge>
+                                    )}
+                                  </div>
+                                  <p className="text-sm">{note.text}</p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -424,6 +575,13 @@ const Index = () => {
                           </div>
                         </div>
                         <div className="flex gap-2">
+                          <Button 
+                            size="sm" 
+                            variant="default"
+                            onClick={() => handlePlayLecture(lecture)}
+                          >
+                            <Icon name="Play" size={16} />
+                          </Button>
                           <Button 
                             size="sm" 
                             variant="outline"
