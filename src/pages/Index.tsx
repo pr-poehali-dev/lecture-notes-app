@@ -84,7 +84,7 @@ const Index = () => {
       if (!lectureTitle.trim() || !lectureSubject.trim()) {
         toast({
           title: "Ошибка",
-          description: "Заполните название и предмет лекции",
+          description: "Заполните название и предмет лекции перед остановкой",
           variant: "destructive"
         });
         return;
@@ -114,6 +114,10 @@ const Index = () => {
     } else {
       setIsRecording(true);
       setIsPaused(false);
+      toast({
+        title: "Запись начата",
+        description: "Введите название и предмет лекции"
+      });
     }
   };
 
@@ -144,7 +148,7 @@ const Index = () => {
     
     toast({
       title: "Заметка добавлена",
-      description: markAsImportant ? "Отмечена как важная" : "Обычная заметка"
+      description: `${markAsImportant ? '⭐ Важная' : 'Обычная'} заметка в ${formatTime(recordingTime)}`
     });
   };
 
@@ -264,13 +268,11 @@ const Index = () => {
                       placeholder="Название лекции" 
                       value={lectureTitle}
                       onChange={(e) => setLectureTitle(e.target.value)}
-                      disabled={isRecording}
                     />
                     <Input 
                       placeholder="Предмет" 
                       value={lectureSubject}
                       onChange={(e) => setLectureSubject(e.target.value)}
-                      disabled={isRecording}
                     />
                   </div>
 
@@ -312,13 +314,11 @@ const Index = () => {
                       value={currentNote}
                       onChange={(e) => setCurrentNote(e.target.value)}
                       rows={4}
-                      disabled={!isRecording}
                     />
                     <div className="flex gap-2">
                       <Button 
                         className="flex-1"
                         onClick={handleAddNote}
-                        disabled={!isRecording}
                       >
                         <Icon name="Plus" size={16} className="mr-2" />
                         Добавить заметку
@@ -326,7 +326,6 @@ const Index = () => {
                       <Button 
                         variant={markAsImportant ? "default" : "outline"}
                         onClick={() => setMarkAsImportant(!markAsImportant)}
-                        disabled={!isRecording}
                       >
                         <Icon name="Star" size={16} />
                       </Button>
